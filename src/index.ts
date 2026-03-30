@@ -1,14 +1,16 @@
 // ─── GENESIS LATENCY RESONANCE DECODER — WD-035 ────────────────────────────
 // Cross-Venue Propagation SIGINT — Pairwise latency matrix + Hasbrouck-Saar FSM
-// Port 8857 | 16 Endpoints | 3 Loops
-// Spark #007 — GCHQ lens (Grok, 2026-03-26)
-// Academic: Aquilina et al. (QJE 2022) — latency races every minute per symbol
+// Port 8857 | 19 Endpoints | 3 Loops
+// Spark #007 v9.2 — GCHQ lens Final Polish (2026-03-30)
+// Academic: Aquilina et al. (QJE 2022), Hasbrouck (1995), Frechet (1927)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import express from "express";
 import { TimestampMatrixService } from "./services/timestamp-matrix.service";
 import { ResonanceDetectorService } from "./services/resonance-detector.service";
 import { SignalEmitterService } from "./services/signal-emitter.service";
+import { FrechetMahalanobisService } from "./services/frechet-mahalanobis.service";
+import { HasbrouckIsService } from "./services/hasbrouck-is.service";
 import { HealthResponse } from "./types";
 
 const app = express();
@@ -21,6 +23,8 @@ const startTime = Date.now();
 const matrix = new TimestampMatrixService();
 const detector = new ResonanceDetectorService(matrix);
 const emitter = new SignalEmitterService();
+const frechet = new FrechetMahalanobisService();
+const hasbrouck = new HasbrouckIsService();
 
 // ── Loop State ────────────────────────────────────────────────────────────
 
@@ -58,7 +62,7 @@ app.get("/health", (_req, res) => {
   const sigStats = emitter.getStats();
   const response: HealthResponse = {
     service: "GENESIS-LATENCY-RESONANCE-DECODER",
-    version: "1.0.0",
+    version: "9.2.0",
     port: PORT,
     status: stats.activeEvents > 10 ? "YELLOW" : "GREEN",
     uptime: Date.now() - startTime,
@@ -162,16 +166,46 @@ app.post("/signals/manual", async (req, res) => {
   res.json({ emitted: true, signal });
 });
 
+// ── Frechet-Mahalanobis Endpoint (v9.2) ─────────────────────────────────
+
+app.get("/latency/frechet", (_req, res) => {
+  res.json(frechet.getState());
+});
+
+// ── Hasbrouck Information Share Endpoint (v9.2) ──────────────────────────
+
+app.get("/latency/hasbrouck", (_req, res) => {
+  res.json(hasbrouck.getState());
+});
+
+// ── Master v9.2 Dashboard ───────────────────────────────────────────────
+
+app.get("/v92/status", (_req, res) => {
+  res.json({
+    service: "GENESIS-LATENCY-RESONANCE-DECODER",
+    version: "9.2.0",
+    spark: "#007 GCHQ v9.2 Final Polish",
+    uptime: Date.now() - startTime,
+    frechet: frechet.getState(),
+    hasbrouck: hasbrouck.getState(),
+    resonance: detector.getStats(),
+    signals: emitter.getStats(),
+    matrix: { venuePairs: matrix.getVenuePairCount(), deviations: matrix.getDeviations().length },
+    loops,
+  });
+});
+
 // ── Boot ──────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  GENESIS LATENCY RESONANCE DECODER — WD-035");
-  console.log("  Cross-Venue Propagation SIGINT");
-  console.log("  Spark #007 — GCHQ lens");
+  console.log("  Cross-Venue Propagation SIGINT — v9.2 POLISHED");
+  console.log("  Spark #007 — GCHQ lens Final Polish");
   console.log(`  Port: ${PORT}`);
-  console.log("  Endpoints: 16 (health 4, matrix 4, resonance 4, signals 4)");
+  console.log("  Endpoints: 19 (health 4, matrix 4, resonance 4, signals 4, v9.2 3)");
   console.log("  Loops: 3 (collect 15s, detect 30s, broadcast 60s)");
+  console.log("  v9.2: Frechet-Mahalanobis + Hasbrouck IS");
   console.log("  Deployment Class: RECON, STRIKE");
   console.log("═══════════════════════════════════════════════════════════");
 
